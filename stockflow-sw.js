@@ -1,5 +1,6 @@
 const CACHE_NAME = 'stockflow-v1';
 const APP_SHELL = [
+  './index.html',
   './StockFlow_Mobile_Inventory-3.html',
   './stockflow-manifest.webmanifest'
 ];
