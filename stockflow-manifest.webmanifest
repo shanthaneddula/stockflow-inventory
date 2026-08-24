@@ -1,0 +1,9 @@
+{
+  "name": "StockFlow Mobile Inventory",
+  "short_name": "StockFlow",
+  "start_url": "./StockFlow_Mobile_Inventory-3.html",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0f172a",
+  "orientation": "portrait"
+}
