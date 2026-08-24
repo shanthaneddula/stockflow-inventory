@@ -10,46 +10,47 @@
 <link rel="manifest" href="stockflow-manifest.webmanifest">
 <title>StockFlow Mobile Inventory</title>
 <style>
-:root{--bg:#f4f6f8;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0}
+:root{--bg:#fff;--card:#fff;--ink:#111111;--muted:#767677;--line:#e5e5e5;--accent:#e2231a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+button,.card,input,select{touch-action:manipulation}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
 .app{max-width:720px;margin:auto;min-height:100vh;padding-bottom:90px}
-header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 16px calc(12px + env(safe-area-inset-top))}
+header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--ink);padding:14px 16px calc(12px + env(safe-area-inset-top))}
 .brandrow,.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.logo{font-size:20px;font-weight:850}.sub{font-size:12px;color:var(--muted);margin-top:2px}
-.iconbtn{width:44px;height:44px;border-radius:14px;background:#eef2f7;font-size:20px;border:0}
+.logo{font-size:18px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.sub{font-size:12px;color:var(--muted);margin-top:2px}
+.iconbtn{width:44px;height:44px;border-radius:2px;background:#fff;border:1px solid var(--line);font-size:20px}
 main{padding:16px}.view{display:none}.view.active{display:block}
-h1{font-size:26px;margin:4px 0 6px}h2{font-size:21px;margin:0 0 6px}
+h1{font-size:30px;line-height:1.05;margin:4px 0 6px;font-weight:900;text-transform:uppercase;letter-spacing:-.01em}h2{font-size:18px;margin:0 0 6px;font-weight:900;text-transform:uppercase;letter-spacing:.02em}
 .muted{color:var(--muted)}.small{font-size:12px}
-.progresspanel{margin:14px 0 16px}.progressline{height:8px;background:#e8edf3;border-radius:999px;overflow:hidden}.progressfill{height:100%;width:0;background:#111827;border-radius:999px;transition:width .2s ease}.progresspanel.complete .progressfill{background:#16a34a}.progressstatus{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-size:12px;color:var(--muted)}
-.search{width:100%;padding:15px 16px;border:1px solid var(--line);border-radius:16px;background:#fff;outline:none;margin:12px 0;font-size:16px}
+.progresspanel{margin:14px 0 16px}.progressline{height:6px;background:#ececec;border-radius:0;overflow:hidden}.progressfill{height:100%;width:0;background:var(--ink);border-radius:0;transition:width .2s ease}.progresspanel.complete .progressfill{background:var(--accent)}.progressstatus{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.search{width:100%;padding:15px 16px;border:1px solid var(--ink);border-radius:2px;background:#fff;outline:none;margin:12px 0;font-size:16px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:17px;min-height:76px;box-shadow:0 2px 10px rgba(15,23,42,.04);text-align:left;width:100%;min-height:44px}
-.card:active{transform:scale(.99)}.cardtitle{font-weight:750}.cardmeta{font-size:12px;color:var(--muted);margin-top:4px}
-.back{background:none;padding:8px 0;color:#334155;font-weight:750;margin-bottom:12px;border:0;min-height:44px}
-.pill{display:inline-flex;padding:5px 9px;border-radius:999px;background:#eef2f7;color:#475569;font-size:12px;font-weight:750}
-.warnbanner{background:#fef3c7;border:1px solid #fcd34d;color:#78350f;border-radius:14px;padding:12px 14px;font-size:13px;margin-bottom:14px}
-.flavor{background:#fff;border:1px solid var(--line);border-radius:24px;padding:24px 18px;text-align:center;margin-top:16px}
-.flavorname{font-size:30px;line-height:1.12;font-weight:850;margin:15px 0 8px}
-.progress{font-size:13px;color:var(--muted)}
-.qtyblock{margin:20px 0}.qtylabel{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:800}
+.card{background:#fff;border:1px solid var(--line);border-radius:2px;padding:17px;min-height:76px;box-shadow:none;text-align:left;width:100%;min-height:44px}
+.card:active{background:#f7f7f7}.cardtitle{font-weight:800;text-transform:uppercase;letter-spacing:.01em;font-size:14px}.cardmeta{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.03em}
+.back{background:none;padding:8px 0;color:var(--ink);font-weight:800;margin-bottom:12px;border:0;min-height:44px;text-transform:uppercase;font-size:13px;letter-spacing:.04em}
+.pill{display:inline-flex;padding:5px 10px;border-radius:2px;background:var(--ink);color:#fff;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.warnbanner{background:#fff5f4;border:1px solid var(--accent);color:#7a1a12;border-radius:2px;padding:12px 14px;font-size:13px;margin-bottom:14px}
+.flavor{background:#fff;border:1px solid var(--line);border-radius:2px;padding:24px 18px;text-align:center;margin-top:16px}
+.flavorname{font-size:26px;line-height:1.15;font-weight:900;margin:15px 0 8px;text-transform:uppercase;letter-spacing:-.01em}
+.progress{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.qtyblock{margin:20px 0}.qtylabel{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}
 .qtyrow{display:flex;justify-content:center;align-items:center;gap:16px;margin-top:8px}
-.qtybtn{width:68px;height:68px;border-radius:20px;background:#111827;color:#fff;font-size:34px;border:0}
-.qty{width:120px;text-align:center;font-size:40px;font-weight:850;border:0;background:transparent;outline:0}
-.order{margin-top:10px;padding:14px;border-radius:16px;background:#f1f5f9}.order strong{font-size:24px}
+.qtybtn{width:64px;height:64px;border-radius:2px;background:var(--ink);color:#fff;font-size:30px;border:0}
+.qty{width:120px;text-align:center;font-size:38px;font-weight:900;border:0;background:transparent;outline:0}
+.order{margin-top:10px;padding:14px;border-radius:2px;background:#fafafa;border:1px solid var(--line)}.order strong{font-size:24px;color:var(--accent);font-weight:900}
 .navrow,.toolbar{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
-.primary,.secondary,.danger{width:100%;min-height:52px;border-radius:16px;font-weight:800;border:0}
-.primary{background:#111827;color:#fff}.secondary{background:#e8edf3;color:#111827}.danger{background:#fee2e2;color:#991b1b}
-.section{margin:18px 0}table{width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden}
-th,td{padding:10px;border-bottom:1px solid var(--line);font-size:13px;text-align:left;vertical-align:top}th{background:#f8fafc}
-.bottom{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid var(--line);padding:10px max(12px,calc((100vw - 720px)/2 + 12px)) calc(10px + env(safe-area-inset-bottom));z-index:20}
-.bottomgrid{max-width:696px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.bottom button{min-height:48px;border-radius:14px;background:#eef2f7;font-weight:800;border:0}
-.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:50;display:none;align-items:flex-end}.modal.open{display:flex}
-.sheet{background:#fff;width:100%;max-height:90vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 16px calc(22px + env(safe-area-inset-bottom))}
+.primary,.secondary,.danger{width:100%;min-height:52px;border-radius:2px;font-weight:800;border:0;text-transform:uppercase;letter-spacing:.05em;font-size:14px}
+.primary{background:var(--ink);color:#fff}.secondary{background:#fff;color:var(--ink);border:1px solid var(--ink)}.danger{background:#fff;color:var(--accent);border:1px solid var(--accent)}
+.section{margin:18px 0}table{width:100%;border-collapse:collapse;background:#fff;border-radius:0;overflow:hidden}
+th,td{padding:10px;border-bottom:1px solid var(--line);font-size:13px;text-align:left;vertical-align:top}th{background:#fafafa;text-transform:uppercase;font-size:11px;letter-spacing:.04em;color:var(--muted)}
+.bottom{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--ink);padding:10px max(12px,calc((100vw - 720px)/2 + 12px)) calc(10px + env(safe-area-inset-bottom));z-index:20}
+.bottomgrid{max-width:696px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.bottom button{min-height:48px;border-radius:2px;background:#fff;border:1px solid var(--line);font-weight:800;text-transform:uppercase;font-size:11px;letter-spacing:.03em}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:none;align-items:flex-end}.modal.open{display:flex}
+.sheet{background:#fff;width:100%;max-height:90vh;overflow:auto;border-radius:0;padding:18px 16px calc(22px + env(safe-area-inset-bottom))}
 .print-only{display:none}
-.pdfgroup{margin:16px 0 22px}.pdfgrouphead{background:#111827;color:#fff;padding:12px 14px;border-radius:12px 12px 0 0}.pdfgrouphead strong{display:block;font-size:17px;text-transform:capitalize}.pdfgrouphead span{display:block;margin-top:3px;font-size:12px;color:#d1d5db}.pdfgroup table{border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px}.pdfgroup th{background:#f1f5f9}.pdfgroup.completehead .pdfgrouphead{background:#166534}
-.field{margin-bottom:12px}.field label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
-select{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:#fff;font-size:16px;min-height:44px}
+.pdfgroup{margin:16px 0 22px}.pdfgrouphead{background:var(--ink);color:#fff;padding:12px 14px;border-radius:0}.pdfgrouphead strong{display:block;font-size:15px;text-transform:uppercase;letter-spacing:.03em}.pdfgrouphead span{display:block;margin-top:3px;font-size:12px;color:#ccc}.pdfgroup table{border:1px solid var(--line);border-top:0;border-radius:0}.pdfgroup th{background:#fafafa}.pdfgroup.completehead .pdfgrouphead{background:var(--accent)}
+.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+select{width:100%;padding:14px;border-radius:2px;border:1px solid var(--ink);background:#fff;font-size:16px;min-height:44px}
 @media(min-width:600px){.modal{align-items:center;padding:20px}.sheet{max-width:680px;border-radius:24px}}
 @media print{
  body{background:#fff}header,.bottom,.no-print{display:none!important}.app{max-width:none;padding:0}
@@ -512,19 +513,20 @@ function familyTitle(group) {
   const edition = group.edition && group.edition !== 'Standard' ? ' - ' + group.edition : '';
   return group.brand + ' ' + group.series + puffCount + edition;
 }
-function familyTablesHtml(rows) {
-  return familyGroups(rows).map(group => '<section class="pdfgroup"><div class="pdfgrouphead"><strong>' + esc(categoryLabel(group.category)) + '</strong><span>' + esc(familyTitle(group) + (familyMeta(group) ? ' - ' + familyMeta(group) : '')) + '</span></div><table><thead><tr><th>Item</th><th>Current on shelf</th><th>Reorder</th></tr></thead><tbody>' + group.rows.map(x => '<tr><td>' + esc(x.itemName || x.flavor) + '</td><td>' + x.current + ' ' + esc(x.stockUnit) + '</td><td><b>' + esc(orderDisplay(x)) + '</b></td></tr>').join('') + '</tbody></table></section>').join('');
+function familyTablesHtml(rows, includeCurrent = true) {
+  const header = includeCurrent ? '<tr><th>Item</th><th>Current on shelf</th><th>Reorder</th></tr>' : '<tr><th>Item</th><th>Reorder</th></tr>';
+  return familyGroups(rows).map(group => '<section class="pdfgroup"><div class="pdfgrouphead"><strong>' + esc(categoryLabel(group.category)) + '</strong><span>' + esc(familyTitle(group) + (familyMeta(group) ? ' - ' + familyMeta(group) : '')) + '</span></div><table><thead>' + header + '</thead><tbody>' + group.rows.map(x => '<tr><td>' + esc(x.itemName || x.flavor) + (includeCurrent ? '</td><td>' + x.current + ' ' + esc(x.stockUnit) : '') + '</td><td><b>' + esc(orderDisplay(x)) + '</b></td></tr>').join('') + '</tbody></table></section>').join('');
 }
 function pdfTableHtml(rows, units) {
   return '<p>Date: __________ &nbsp;&nbsp; Supplier: __________________</p>' +
     '<p><b>Total SKUs:</b> ' + rows.length + ' &nbsp; <b>Total Packs / Pieces:</b> ' + units + '</p>' +
-    familyTablesHtml(rows);
+    familyTablesHtml(rows, false);
 }
 function previewPdf() {
   let rows = pdfFilteredRows(), units = rows.reduce((s, x) => s + x.order, 0);
   if (!rows.length) { alert("There are no items to order in this scope."); return; }
   document.getElementById('pdfPreviewSummary').innerHTML = '<div class="card"><b>' + rows.length + '</b> SKUs • <b>' + units + '</b> total packs / pieces</div>';
-  document.getElementById('pdfPreviewTable').innerHTML = familyTablesHtml(rows);
+  document.getElementById('pdfPreviewTable').innerHTML = familyTablesHtml(rows, true);
   document.getElementById('pdfPreviewWrap').style.display = 'block';
   document.getElementById('pdfPreviewWrap').scrollIntoView({ behavior: 'smooth' });
 }
