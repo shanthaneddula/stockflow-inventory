@@ -96,17 +96,13 @@ select{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);b
 <button class="qtybtn" data-action="changeQty" data-type="current" data-delta="-1">−</button>
 <input id="currentQty" class="qty" inputmode="numeric" data-action="setCurrentFromInput">
 <button class="qtybtn" data-action="changeQty" data-type="current" data-delta="1">+</button></div></div>
-<div class="qtyblock"><div class="qtylabel">Par level / required</div><div class="qtyrow">
-<button class="qtybtn" data-action="changeQty" data-type="par" data-delta="-1">−</button>
-<input id="parQty" class="qty" inputmode="numeric" data-action="setParFromInput">
-<button class="qtybtn" data-action="changeQty" data-type="par" data-delta="1">+</button></div></div>
+<div class="qtyblock"><div class="qtylabel" id="reorderLabel">Reorder quantity</div><div class="qtyrow">
+<button class="qtybtn" data-action="changeQty" data-type="reorder" data-delta="-1">−</button>
+<input id="reorderQty" class="qty" inputmode="numeric" data-action="setReorderFromInput">
+<button class="qtybtn" data-action="changeQty" data-type="reorder" data-delta="1">+</button></div></div>
 <div class="order">
 Order quantity: <strong id="orderQty">0</strong> <span class="small muted" id="orderModeLabel"></span>
-<div class="qtyrow" style="margin-top:10px;justify-content:flex-start;gap:10px">
-<input id="orderOverrideInput" class="qty" style="font-size:20px;width:100px" inputmode="numeric" placeholder="auto" data-action="setOrderOverrideFromInput">
-<button class="secondary" style="min-height:44px;padding:0 16px;width:auto" data-action="clearOrderOverride">Auto</button>
-</div>
-<div class="small muted" style="margin-top:6px">Leave blank for automatic calculation, or type an exact quantity to order.</div>
+<div class="small muted" style="margin-top:6px">Enter the number of supplier packs. One box equals the pack size shown above.</div>
 </div>
 </div>
 <div class="navrow"><button class="secondary" data-action="prevFlavor">← Previous</button><button class="primary" data-action="nextFlavor">Next →</button></div>
@@ -181,7 +177,7 @@ const LEGACY_CATALOG = JSON.parse(document.getElementById('catalog-data').textCo
 const makeItems = (category, brand, series, edition, names, attributes = {}, policy = {}) => names.map((name, index) => ({
   id: [category, brand, series, edition, name, index].join('-').toUpperCase().replace(/[^A-Z0-9]+/g, '-'),
   category, brand, series, edition, itemName: name, attributes: { ...attributes },
-  sort_order: index + 1, active: true, ordering: { stockUnit: 'piece', orderUnit: 'piece', unitsPerOrderUnit: 1, ...policy }
+  sort_order: index + 1, active: true, ordering: { stockUnit: 'piece', orderUnit: category === 'vape' && brand !== 'Olit' ? 'box' : 'piece', unitsPerOrderUnit: category === 'vape' && brand !== 'Olit' ? 5 : 1, ...policy }
 }));
 const EXTRA_CATALOG = [
   ...makeItems('vape', 'Geek Bar', 'Pulse', 'Zero Nic', ['Blue Razz Ice', 'Miami Mint', 'Watermelon Ice', 'Fcuking Fab', 'Strawberry B-Pop'], { nicotine: '0 mg', puff_count: '15000', product_type: 'Disposable' }),
@@ -213,7 +209,7 @@ const EXTRA_CATALOG = [
   ...makeItems('roll-your-own', 'OHM', 'Economy & Bulk Tobacco', 'Bag & Box', ['Bold', 'Extra Bold', 'Blue', 'Silver', 'Menthol', 'Menthol Gold', 'Natural', 'Turkish Red', 'Turkish Yellow'], { cut_type: 'Ribbon cut', package_form: 'Bag or bulk box' }, { stockUnit: 'package', orderUnit: 'package' }),
   ...makeItems('roll-your-own', 'The Good Stuff', 'Economy & Bulk Tobacco', 'Bag', ['Red', 'Gold', 'Silver', 'Natural', 'Menthol', 'Menthol Gold'], { cut_type: 'Ribbon cut', package_form: 'Bag' }, { stockUnit: 'bag', orderUnit: 'bag' })
 ];
-const CATALOG = LEGACY_CATALOG.map(item => ({ ...item, category: item.category || 'vape', itemName: item.itemName || item.flavor, attributes: { flavor: item.flavor, puff_count: item.puff_count, nicotine: item.nicotine, product_type: item.product_type }, ordering: { stockUnit: 'piece', orderUnit: 'piece', unitsPerOrderUnit: 1, ...(item.brand === 'Olit' ? { minimumOrderUnits: 2 } : {}) } })).concat(EXTRA_CATALOG);
+const CATALOG = LEGACY_CATALOG.map(item => ({ ...item, category: item.category || 'vape', itemName: item.itemName || item.flavor, attributes: { flavor: item.flavor, puff_count: item.puff_count, nicotine: item.nicotine, product_type: item.product_type }, ordering: item.brand === 'Olit' ? { stockUnit: 'piece', orderUnit: 'piece', unitsPerOrderUnit: 1, minimumOrderUnits: 2 } : { stockUnit: 'piece', orderUnit: 'box', unitsPerOrderUnit: 5 } })).concat(EXTRA_CATALOG);
 
 /* ---------- storage (versioned, with migration) ---------- */
 const STORE_KEY = "stockflow_inventory_v2";
@@ -233,10 +229,10 @@ let debugVisible = false;
 
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 function key(i) { return i.id; }
-function qty(i) { let x = state[key(i)] || { current: 0, par: 0 }; return { current: +x.current || 0, par: +x.par || 0 }; }
+function qty(i) { let x = state[key(i)] || {}; return { current: +x.current || 0, reorder: +x.reorder || 0 }; }
 function setQty(type, val) {
   let i = flavorList[flavorIndex]; if (!i) return;
-  state[key(i)] = state[key(i)] || { current: 0, par: 0 };
+  state[key(i)] = state[key(i)] || { current: 0, reorder: 0 };
   state[key(i)][type] = Math.max(0, parseInt(val || 0, 10) || 0);
   save(); renderFlavor();
 }
@@ -244,30 +240,18 @@ function changeQty(type, d) { let q = qty(flavorList[flavorIndex]); setQty(type,
 
 /* ---------- order quantity: manual override wins, then item ordering policy ---------- */
 function computeOrder(i) {
-  let s = state[key(i)] || {};
-  let q = qty(i);
-  if (s.orderOverride !== undefined && s.orderOverride !== null && s.orderOverride !== "" && +s.orderOverride > 0) {
-    return +s.orderOverride;
-  }
-  const policy = i.ordering || { orderUnit: 'piece', unitsPerOrderUnit: 1 };
-  let needed = Math.max(0, q.par - q.current);
-  if (policy.minimumOrderUnits && q.current <= 1) needed = Math.max(needed, policy.minimumOrderUnits);
-  const multiple = Math.max(1, +policy.orderMultiple || 1);
-  return Math.ceil(needed / multiple) * multiple;
+  return qty(i).reorder;
 }
 function orderQty(i) { return computeOrder(i); }
-function setOrderOverrideFromInput(val) {
-  let i = flavorList[flavorIndex]; if (!i) return;
-  state[key(i)] = state[key(i)] || { current: 0, par: 0 };
-  let n = parseInt(val, 10);
-  if (isNaN(n) || n <= 0) { delete state[key(i)].orderOverride; }
-  else { state[key(i)].orderOverride = n; }
-  save(); renderFlavor();
+function orderDisplay(i, quantity = computeOrder(i)) {
+  const policy = i.ordering || {};
+  const unit = policy.orderUnit || 'unit';
+  const conversion = +policy.unitsPerOrderUnit || 1;
+  return quantity + ' ' + unit + (conversion > 1 ? ' (' + (quantity * conversion) + ' pieces)' : '');
 }
-function clearOrderOverride() {
+function setReorderFromInput(val) {
   let i = flavorList[flavorIndex]; if (!i) return;
-  if (state[key(i)]) delete state[key(i)].orderOverride;
-  save(); renderFlavor();
+  setQty('reorder', val);
 }
 function showView(id) { document.querySelectorAll(".view").forEach(x => x.classList.remove("active")); document.getElementById(id).classList.add("active"); window.scrollTo(0, 0); }
 function unique(a) { return [...new Set(a)]; }
@@ -379,27 +363,26 @@ function renderFlavor() {
   document.getElementById("flavorMeta").textContent = Object.entries(i.attributes || {}).filter(([key, value]) => value && key !== 'flavor').map(([key, value]) => key.replaceAll('_', ' ') + ': ' + value).join(" • ");
   document.getElementById("flavorCounter").textContent = (flavorIndex + 1) + " of " + flavorList.length;
   document.getElementById("flavorProgress").textContent = (flavorIndex + 1) + " / " + flavorList.length;
-  document.getElementById("currentQty").value = q.current; document.getElementById("parQty").value = q.par;
-  document.getElementById("orderQty").textContent = computeOrder(i) + ' ' + ((i.ordering || {}).orderUnit || 'units');
+  document.getElementById("currentQty").value = q.current; document.getElementById("reorderQty").value = q.reorder;
+  document.getElementById("reorderLabel").textContent = 'Reorder quantity (' + ((i.ordering || {}).orderUnit || 'units') + ')';
+  document.getElementById("orderQty").textContent = orderDisplay(i);
   let s = state[key(i)] || {};
-  const hasOverride = s.orderOverride !== undefined && s.orderOverride !== null && s.orderOverride !== "" && +s.orderOverride > 0;
-  document.getElementById("orderOverrideInput").value = hasOverride ? s.orderOverride : "";
-  document.getElementById("orderModeLabel").textContent = hasOverride ? "(manual)" : '(auto: ' + ((i.ordering || {}).orderUnit || 'units') + ')';
+  document.getElementById("orderModeLabel").textContent = '(entered in ' + ((i.ordering || {}).orderUnit || 'units') + ')';
 }
 function prevFlavor() { if (flavorIndex > 0) { flavorIndex--; renderFlavor(); } else backFromFlavor(); }
 function nextFlavor() { if (flavorIndex < flavorList.length - 1) { flavorIndex++; renderFlavor(); } else openReview(); }
 function backFromFlavor() { showView("products"); renderProducts(); }
 function restockNow() { showView("home"); goCategories(); }
-function allOrders() { return CATALOG.map(i => { let q = qty(i); return { ...i, current: q.current, par: q.par, order: computeOrder(i), stockUnit: (i.ordering || {}).stockUnit || 'unit', orderUnit: (i.ordering || {}).orderUnit || 'unit' }; }).filter(x => x.order > 0); }
+function allOrders() { return CATALOG.map(i => { let q = qty(i); return { ...i, current: q.current, reorder: q.reorder, order: computeOrder(i), stockUnit: (i.ordering || {}).stockUnit || 'unit', orderUnit: (i.ordering || {}).orderUnit || 'unit' }; }).filter(x => x.order > 0); }
 
 /* ---------- review ---------- */
 function openReview() { renderReview(); populatePdfScope(); closePdfPreview(); showView("review"); }
 function renderReview() {
   let rows = allOrders(), units = rows.reduce((s, x) => s + x.order, 0);
-  document.getElementById("reviewSummary").innerHTML = '<div class="card"><b>' + rows.length + '</b> SKUs to order • <b>' + units + '</b> total units</div>';
-  if (!rows.length) { document.getElementById("reviewTable").innerHTML = '<div class="card section">No restock quantities yet. Set a par level above current stock.</div>'; return; }
-  document.getElementById("reviewTable").innerHTML = '<table><thead><tr><th>Category</th><th>Brand / Item</th><th>Current</th><th>Required</th><th>Order</th></tr></thead><tbody>' +
-    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '<br>' + esc(x.itemName || x.flavor) + '<br><span class="small">' + esc([x.series, x.edition].filter(Boolean).join(' / ')) + '</span></td><td>' + x.current + ' ' + esc(x.stockUnit) + '</td><td>' + x.par + ' ' + esc(x.stockUnit) + '</td><td><b>' + x.order + ' ' + esc(x.orderUnit) + '</b></td></tr>').join("") +
+  document.getElementById("reviewSummary").innerHTML = '<div class="card"><b>' + rows.length + '</b> SKUs to order • <b>' + units + '</b> total packs / pieces</div>';
+  if (!rows.length) { document.getElementById("reviewTable").innerHTML = '<div class="card section">No reorder quantities entered yet.</div>'; return; }
+  document.getElementById("reviewTable").innerHTML = '<table><thead><tr><th>Category</th><th>Brand / Item</th><th>Current on shelf</th><th>Reorder</th></tr></thead><tbody>' +
+    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '<br>' + esc(x.itemName || x.flavor) + '<br><span class="small">' + esc([x.series, x.edition].filter(Boolean).join(' / ')) + '</span></td><td>' + x.current + ' ' + esc(x.stockUnit) + '</td><td>' + esc(orderDisplay(x)) + '</td></tr>').join("") +
     '</tbody></table>';
 }
 
@@ -451,9 +434,9 @@ function pdfFilteredRows() {
 }
 function pdfTableHtml(rows, units) {
   return '<p>Date: __________ &nbsp;&nbsp; Supplier: __________________</p>' +
-    '<p><b>Total SKUs:</b> ' + rows.length + ' &nbsp; <b>Total Units:</b> ' + units + '</p>' +
+    '<p><b>Total SKUs:</b> ' + rows.length + ' &nbsp; <b>Total Packs / Pieces:</b> ' + units + '</p>' +
     '<table><thead><tr><th>Category</th><th>Brand</th><th>Item</th><th>SKU</th><th>Quantity</th></tr></thead><tbody>' +
-    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '</td><td>' + esc(x.itemName || x.flavor) + '</td><td>' + esc(x.id) + '</td><td><b>' + x.order + ' ' + esc(x.orderUnit) + '</b></td></tr>').join("") +
+    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '</td><td>' + esc(x.itemName || x.flavor) + '</td><td>' + esc(x.id) + '</td><td><b>' + esc(orderDisplay(x)) + '</b></td></tr>').join("") +
     '</tbody></table>';
 }
 function previewPdf() {
@@ -461,7 +444,7 @@ function previewPdf() {
   if (!rows.length) { alert("There are no items to order in this scope."); return; }
   document.getElementById('pdfPreviewSummary').innerHTML = '<div class="card"><b>' + rows.length + '</b> SKUs • <b>' + units + '</b> total units</div>';
   document.getElementById('pdfPreviewTable').innerHTML = '<table><thead><tr><th>Category</th><th>Brand / Item</th><th>Details</th><th>Qty</th></tr></thead><tbody>' +
-    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '<br>' + esc(x.itemName || x.flavor) + '</td><td>' + esc([x.series, x.edition].filter(Boolean).join(' / ')) + '<br><span class="small">' + esc(x.id) + '</span></td><td><b>' + x.order + ' ' + esc(x.orderUnit) + '</b></td></tr>').join("") +
+    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '<br>' + esc(x.itemName || x.flavor) + '</td><td>' + esc([x.series, x.edition].filter(Boolean).join(' / ')) + '<br><span class="small">' + esc(x.id) + '</span></td><td><b>' + esc(orderDisplay(x)) + '</b></td></tr>').join("") +
     '</tbody></table>';
   document.getElementById('pdfPreviewWrap').style.display = 'block';
   document.getElementById('pdfPreviewWrap').scrollIntoView({ behavior: 'smooth' });
@@ -479,15 +462,15 @@ function downloadBlob(text, name, type) { let a = document.createElement("a"); a
 function csv(v) { return '"' + String(v ?? "").replaceAll('"', '""') + '"'; }
 function exportCSV() {
   let rows = allOrders().map(x => ({ ...x, attributes: JSON.stringify(x.attributes || {}) }));
-  let head = ["category", "brand", "series", "edition", "itemName", "current", "par", "order", "stockUnit", "orderUnit", "id", "attributes"];
-  let display = ["Category", "Brand", "Series", "Edition", "Item", "Current", "Required", "Order", "Stock Unit", "Order Unit", "SKU", "Attributes"];
+  let head = ["category", "brand", "series", "edition", "itemName", "current", "reorder", "order", "stockUnit", "orderUnit", "id", "attributes"];
+  let display = ["Category", "Brand", "Series", "Edition", "Item", "Current on Shelf", "Reorder Quantity", "Order Quantity", "Stock Unit", "Order Unit", "SKU", "Attributes"];
   let lines = [display.join(",")].concat(rows.map(x => head.map(k => csv(x[k])).join(",")));
   downloadBlob(lines.join("\r\n"), "stockflow-restock.csv", "text/csv;charset=utf-8");
 }
 function exportFullCatalogCSV() {
-  let head = ["category", "brand", "series", "edition", "itemName", "current", "par", "order", "stockUnit", "orderUnit", "id", "attributes"];
-  let display = ["Category", "Brand", "Series", "Edition", "Item", "Current", "Required", "Order", "Stock Unit", "Order Unit", "SKU", "Attributes"];
-  let rows = CATALOG.map(i => { let q = qty(i); return { ...i, current: q.current, par: q.par, order: computeOrder(i), stockUnit: (i.ordering || {}).stockUnit || 'unit', orderUnit: (i.ordering || {}).orderUnit || 'unit', attributes: JSON.stringify(i.attributes || {}) }; });
+  let head = ["category", "brand", "series", "edition", "itemName", "current", "reorder", "order", "stockUnit", "orderUnit", "id", "attributes"];
+  let display = ["Category", "Brand", "Series", "Edition", "Item", "Current on Shelf", "Reorder Quantity", "Order Quantity", "Stock Unit", "Order Unit", "SKU", "Attributes"];
+  let rows = CATALOG.map(i => { let q = qty(i); return { ...i, current: q.current, reorder: q.reorder, order: computeOrder(i), stockUnit: (i.ordering || {}).stockUnit || 'unit', orderUnit: (i.ordering || {}).orderUnit || 'unit', attributes: JSON.stringify(i.attributes || {}) }; });
   let lines = [display.join(",")].concat(rows.map(x => head.map(k => csv(x[k])).join(",")));
   downloadBlob(lines.join("\r\n"), "stockflow-full-catalog.csv", "text/csv;charset=utf-8");
 }
@@ -541,14 +524,12 @@ document.addEventListener("click", function (event) {
     case "previewPdf": previewPdf(); break;
     case "closePdfPreview": closePdfPreview(); break;
     case "confirmGeneratePdf": confirmGeneratePdf(); break;
-    case "clearOrderOverride": clearOrderOverride(); break;
   }
 });
 document.addEventListener("change", function (event) {
   const t = event.target;
   if (t.id === "currentQty") setQty("current", t.value);
-  else if (t.id === "parQty") setQty("par", t.value);
-  else if (t.id === "orderOverrideInput") setOrderOverrideFromInput(t.value);
+  else if (t.id === "reorderQty") setReorderFromInput(t.value);
   else if (t.id === "restoreFile") restoreBackup(event);
   else if (t.dataset && t.dataset.action === "pdfScopeChanged") pdfScopeChanged();
   else if (t.dataset && t.dataset.action === "pdfBrandChanged") pdfBrandChanged();
