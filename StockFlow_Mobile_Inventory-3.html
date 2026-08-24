@@ -21,6 +21,7 @@ header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.96);backdro
 main{padding:16px}.view{display:none}.view.active{display:block}
 h1{font-size:26px;margin:4px 0 6px}h2{font-size:21px;margin:0 0 6px}
 .muted{color:var(--muted)}.small{font-size:12px}
+.progresspanel{margin:14px 0 16px}.progressline{height:8px;background:#e8edf3;border-radius:999px;overflow:hidden}.progressfill{height:100%;width:0;background:#111827;border-radius:999px;transition:width .2s ease}.progresspanel.complete .progressfill{background:#16a34a}.progressstatus{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-size:12px;color:var(--muted)}
 .search{width:100%;padding:15px 16px;border:1px solid var(--line);border-radius:16px;background:#fff;outline:none;margin:12px 0;font-size:16px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:17px;min-height:76px;box-shadow:0 2px 10px rgba(15,23,42,.04);text-align:left;width:100%;min-height:44px}
@@ -68,6 +69,7 @@ select{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);b
 <section id="home" class="view active">
 <button id="categoryBack" class="back" data-action="goCategories" style="display:none">‹ All categories</button>
 <h1 id="homeTitle">Inventory</h1><div class="muted" id="homeSub">Choose a category to start counting.</div>
+<div id="homeProgress" class="progresspanel"></div>
 <div id="loadWarning"></div>
 <input id="brandSearch" class="search" placeholder="Search category…">
 <div id="brandGrid" class="grid"></div>
@@ -76,6 +78,7 @@ select{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);b
 <section id="products" class="view">
 <button class="back" data-action="goHome">‹ All brands</button><h1 id="productsTitle"></h1>
 <div class="muted">Choose a series / product.</div>
+<div id="productsProgress" class="progresspanel"></div>
 <input id="productSearch" class="search" placeholder="Search series…">
 <div id="productGrid" class="grid"></div>
 </section>
@@ -83,6 +86,7 @@ select{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);b
 <section id="editions" class="view">
 <button class="back" data-action="backToProducts">‹ Back</button>
 <h1 id="editionsTitle"></h1><div class="sub muted" id="editionsSub"></div>
+<div id="editionsProgress" class="progresspanel"></div>
 <div id="editionGrid" class="grid"></div>
 </section>
 
@@ -214,9 +218,17 @@ const CATALOG = LEGACY_CATALOG.map(item => ({ ...item, category: item.category |
 /* ---------- storage (versioned, with migration) ---------- */
 const STORE_KEY = "stockflow_inventory_v2";
 const OLD_STORE_KEY = "stockflow_inventory_v1";
+const VISIT_KEY = "stockflow_inventory_visits_v1";
+const CATEGORY_VISIT_KEY = "stockflow_inventory_category_visits_v1";
 let state = {};
+let visitedIds = new Set();
+let visitedCategories = new Set();
 try { state = JSON.parse(localStorage.getItem(STORE_KEY) || "null") || {}; }
 catch (e) { state = {}; }
+try { visitedIds = new Set(JSON.parse(localStorage.getItem(VISIT_KEY) || "[]")); }
+catch (e) { visitedIds = new Set(); }
+try { visitedCategories = new Set(JSON.parse(localStorage.getItem(CATEGORY_VISIT_KEY) || "[]")); }
+catch (e) { visitedCategories = new Set(); }
 if (!localStorage.getItem(STORE_KEY)) {
   try {
     let old = JSON.parse(localStorage.getItem(OLD_STORE_KEY) || "null");
@@ -228,13 +240,50 @@ let currentCategory = null, currentBrand = null, currentSeries = null, currentEd
 let debugVisible = false;
 
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function saveVisits() { localStorage.setItem(VISIT_KEY, JSON.stringify([...visitedIds])); }
+function saveCategoryVisits() { localStorage.setItem(CATEGORY_VISIT_KEY, JSON.stringify([...visitedCategories])); }
 function key(i) { return i.id; }
 function qty(i) { let x = state[key(i)] || {}; return { current: +x.current || 0, reorder: +x.reorder || 0 }; }
+function entered(i) { return Object.prototype.hasOwnProperty.call(state, key(i)); }
+function markVisited(i) { if (!visitedIds.has(key(i))) { visitedIds.add(key(i)); saveVisits(); } }
+function progressHtml(items, label) {
+  const total = items.length;
+  const visited = items.filter(i => visitedIds.has(key(i))).length;
+  const enteredCount = items.filter(entered).length;
+  const percent = total ? Math.round((visited / total) * 100) : 0;
+  const complete = total > 0 && visited === total && enteredCount === total;
+  return '<div class="progressline"><div class="progressfill" style="width:' + percent + '%"></div></div><div class="progressstatus"><span>' + esc(label) + ': ' + visited + ' / ' + total + ' visited</span><span>' + enteredCount + ' entered</span></div>';
+}
+function progressBlock(done, total, enteredCount, label) {
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  return { html: '<div class="progressline"><div class="progressfill" style="width:' + percent + '%"></div></div><div class="progressstatus"><span>' + esc(label) + ': ' + done + ' / ' + total + ' visited</span><span>' + enteredCount + ' entered</span></div>', complete: total > 0 && done === total && enteredCount === total };
+}
+function updateProgress() {
+  const homeItems = currentCategory ? CATALOG.filter(i => i.category === currentCategory) : CATALOG;
+  const brandItems = currentCategory && currentBrand ? CATALOG.filter(i => i.category === currentCategory && i.brand === currentBrand) : [];
+  const familyItems = currentCategory && currentBrand && currentSeries ? CATALOG.filter(i => i.category === currentCategory && i.brand === currentBrand && i.series === currentSeries) : [];
+  const home = document.getElementById('homeProgress');
+  const products = document.getElementById('productsProgress');
+  const editions = document.getElementById('editionsProgress');
+  if (home) {
+    if (currentCategory) {
+      home.innerHTML = progressHtml(homeItems, 'Category progress');
+      home.classList.toggle('complete', homeItems.length > 0 && homeItems.every(i => visitedIds.has(key(i)) && entered(i)));
+    } else {
+      const categories = unique(CATALOG.map(i => i.category));
+      const enteredCategories = categories.filter(category => CATALOG.filter(i => i.category === category).every(entered)).length;
+      const block = progressBlock(categories.filter(category => visitedCategories.has(category)).length, categories.length, enteredCategories, 'Categories');
+      home.innerHTML = block.html; home.classList.toggle('complete', block.complete);
+    }
+  }
+  if (products) { products.innerHTML = progressHtml(brandItems, 'Brand progress'); products.classList.toggle('complete', brandItems.length > 0 && brandItems.every(i => visitedIds.has(key(i)) && entered(i))); }
+  if (editions) { editions.innerHTML = progressHtml(familyItems, 'Product family progress'); editions.classList.toggle('complete', familyItems.length > 0 && familyItems.every(i => visitedIds.has(key(i)) && entered(i))); }
+}
 function setQty(type, val) {
   let i = flavorList[flavorIndex]; if (!i) return;
   state[key(i)] = state[key(i)] || { current: 0, reorder: 0 };
   state[key(i)][type] = Math.max(0, parseInt(val || 0, 10) || 0);
-  save(); renderFlavor();
+  save(); renderFlavor(); updateProgress();
 }
 function changeQty(type, d) { let q = qty(flavorList[flavorIndex]); setQty(type, q[type] + d); }
 
@@ -292,21 +341,26 @@ function renderBrands() {
   let t = (document.getElementById("brandSearch").value || "").toLowerCase();
   let bs = unique(CATALOG.filter(x => x.category === currentCategory).map(x => x.brand)).filter(x => x.toLowerCase().includes(t));
   document.getElementById("brandGrid").innerHTML = bs.map(b => {
-    let n = CATALOG.filter(x => x.category === currentCategory && x.brand === b).length;
-    return '<button class="card" data-action="selectBrand" data-brand="' + encodeURIComponent(b) + '"><div class="cardtitle">' + esc(b) + '</div><div class="cardmeta">' + n + ' catalog entries</div></button>';
+    let brandItems = CATALOG.filter(x => x.category === currentCategory && x.brand === b);
+    let n = brandItems.length, visited = brandItems.filter(i => visitedIds.has(key(i))).length;
+    return '<button class="card" data-action="selectBrand" data-brand="' + encodeURIComponent(b) + '"><div class="cardtitle">' + esc(b) + '</div><div class="cardmeta">' + n + ' entries • ' + visited + ' visited</div></button>';
   }).join("");
+  updateProgress();
 }
 function renderCategories() {
   const t = (document.getElementById("brandSearch").value || "").toLowerCase();
   const categories = unique(CATALOG.map(x => x.category)).filter(x => x.toLowerCase().includes(t));
   document.getElementById("brandGrid").innerHTML = categories.map(category => {
     const count = CATALOG.filter(x => x.category === category).length;
-    const orders = CATALOG.filter(x => x.category === category && computeOrder(x) > 0).length;
-    return '<button class="card" data-action="selectCategory" data-category="' + encodeURIComponent(category) + '"><div class="cardtitle">' + esc(category.replaceAll('-', ' ')) + '</div><div class="cardmeta">' + count + ' items • ' + orders + ' to restock</div></button>';
+    const categoryItems = CATALOG.filter(x => x.category === category);
+    const orders = categoryItems.filter(x => computeOrder(x) > 0).length;
+    const visited = categoryItems.filter(i => visitedIds.has(key(i))).length;
+    return '<button class="card" data-action="selectCategory" data-category="' + encodeURIComponent(category) + '"><div class="cardtitle">' + esc(category.replaceAll('-', ' ')) + '</div><div class="cardmeta">' + count + ' items • ' + visited + ' visited • ' + orders + ' to restock</div></button>';
   }).join("");
 }
 function selectCategory(category) {
   currentCategory = category;
+  if (!visitedCategories.has(category)) { visitedCategories.add(category); saveCategoryVisits(); }
   document.getElementById("homeTitle").textContent = category.replaceAll('-', ' ');
   document.getElementById("homeSub").textContent = "Choose a brand to continue.";
   document.getElementById("brandSearch").value = "";
@@ -322,6 +376,7 @@ function goCategories() {
   document.getElementById("brandSearch").placeholder = "Search category…";
   document.getElementById("categoryBack").style.display = "none";
   renderCategories();
+  updateProgress();
 }
 function selectBrand(b) {
   currentBrand = b;
@@ -336,6 +391,7 @@ function renderProducts() {
     let n = CATALOG.filter(x => x.category === currentCategory && x.brand === currentBrand && x.series === p).length;
     return '<button class="card" data-action="selectSeries" data-series="' + encodeURIComponent(p) + '"><div class="cardtitle">' + esc(p) + '</div><div class="cardmeta">' + n + ' entries</div></button>';
   }).join("");
+  updateProgress();
 }
 function selectSeries(p) {
   currentSeries = p;
@@ -347,7 +403,7 @@ function selectSeries(p) {
     let n = CATALOG.filter(x => x.category === currentCategory && x.brand === currentBrand && x.series === currentSeries && x.edition === e).length;
     return '<button class="card" data-action="selectEdition" data-edition="' + encodeURIComponent(e) + '"><div class="cardtitle">' + esc(e) + '</div><div class="cardmeta">' + n + ' items</div></button>';
   }).join("");
-  showView("editions");
+  showView("editions"); updateProgress();
 }
 function selectEdition(e) {
   currentEdition = e;
@@ -357,6 +413,7 @@ function selectEdition(e) {
 function backToProducts() { showView("products"); renderProducts(); }
 function renderFlavor() {
   let i = flavorList[flavorIndex]; if (!i) return; let q = qty(i);
+  markVisited(i);
   document.getElementById("flavorSeries").textContent = i.series;
   document.getElementById("flavorEdition").textContent = i.brand + " • " + i.edition;
   document.getElementById("flavorName").textContent = i.itemName || i.flavor;
@@ -368,6 +425,7 @@ function renderFlavor() {
   document.getElementById("orderQty").textContent = orderDisplay(i);
   let s = state[key(i)] || {};
   document.getElementById("orderModeLabel").textContent = '(entered in ' + ((i.ordering || {}).orderUnit || 'units') + ')';
+  updateProgress();
 }
 function prevFlavor() { if (flavorIndex > 0) { flavorIndex--; renderFlavor(); } else backFromFlavor(); }
 function nextFlavor() { if (flavorIndex < flavorList.length - 1) { flavorIndex++; renderFlavor(); } else openReview(); }
