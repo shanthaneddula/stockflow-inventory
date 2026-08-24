@@ -47,6 +47,7 @@ th,td{padding:10px;border-bottom:1px solid var(--line);font-size:13px;text-align
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:50;display:none;align-items:flex-end}.modal.open{display:flex}
 .sheet{background:#fff;width:100%;max-height:90vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 16px calc(22px + env(safe-area-inset-bottom))}
 .print-only{display:none}
+.pdfgroup{margin:16px 0 22px}.pdfgrouphead{background:#111827;color:#fff;padding:12px 14px;border-radius:12px 12px 0 0}.pdfgrouphead strong{display:block;font-size:17px;text-transform:capitalize}.pdfgrouphead span{display:block;margin-top:3px;font-size:12px;color:#d1d5db}.pdfgroup table{border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px}.pdfgroup th{background:#f1f5f9}.pdfgroup.completehead .pdfgrouphead{background:#166534}
 .field{margin-bottom:12px}.field label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
 select{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:#fff;font-size:16px;min-height:44px}
 @media(min-width:600px){.modal{align-items:center;padding:20px}.sheet{max-width:680px;border-radius:24px}}
@@ -54,7 +55,7 @@ select{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);b
  body{background:#fff}header,.bottom,.no-print{display:none!important}.app{max-width:none;padding:0}
  .print-only{display:block!important}h1{font-size:22px}
  @page{size:landscape}
- table{font-size:11px}
+ table{font-size:11px}.pdfgroup{break-inside:avoid;margin:0 0 18px}.pdfgrouphead{background:#111827!important;color:#fff!important}
 }
 </style>
 </head>
@@ -490,20 +491,38 @@ function pdfFilteredRows() {
   else if (scope === 'edition') { const b = document.getElementById('pdfBrand').value, s = document.getElementById('pdfSeries').value, e = document.getElementById('pdfEdition').value; rows = rows.filter(x => x.brand === b && x.series === s && x.edition === e); }
   return rows;
 }
+function categoryLabel(category) { return category === 'vape' ? 'Disposable Vape' : category.replaceAll('-', ' ').replace(/\b\w/g, letter => letter.toUpperCase()); }
+function familyGroups(rows) {
+  const groups = new Map();
+  rows.forEach(item => {
+    const groupKey = [item.category, item.brand, item.series, item.edition].join('|');
+    if (!groups.has(groupKey)) groups.set(groupKey, { ...item, rows: [] });
+    groups.get(groupKey).rows.push(item);
+  });
+  return [...groups.values()];
+}
+function familyMeta(group) {
+  const values = Object.entries(group.attributes || {}).filter(([key, value]) => value && key !== 'flavor').map(([key, value]) => key.replaceAll('_', ' ') + ': ' + value);
+  return values.join(' • ');
+}
+function familyTitle(group) {
+  const puffCount = group.category === 'vape' && group.attributes && group.attributes.puff_count ? ' ' + Math.round(+group.attributes.puff_count / 1000) + 'K' : '';
+  const edition = group.edition && group.edition !== 'Standard' ? ' - ' + group.edition : '';
+  return group.brand + ' ' + group.series + puffCount + edition;
+}
+function familyTablesHtml(rows) {
+  return familyGroups(rows).map(group => '<section class="pdfgroup"><div class="pdfgrouphead"><strong>' + esc(categoryLabel(group.category)) + '</strong><span>' + esc(familyTitle(group) + (familyMeta(group) ? ' - ' + familyMeta(group) : '')) + '</span></div><table><thead><tr><th>Item</th><th>Current on shelf</th><th>Reorder</th></tr></thead><tbody>' + group.rows.map(x => '<tr><td>' + esc(x.itemName || x.flavor) + '</td><td>' + x.current + ' ' + esc(x.stockUnit) + '</td><td><b>' + esc(orderDisplay(x)) + '</b></td></tr>').join('') + '</tbody></table></section>').join('');
+}
 function pdfTableHtml(rows, units) {
   return '<p>Date: __________ &nbsp;&nbsp; Supplier: __________________</p>' +
     '<p><b>Total SKUs:</b> ' + rows.length + ' &nbsp; <b>Total Packs / Pieces:</b> ' + units + '</p>' +
-    '<table><thead><tr><th>Category</th><th>Brand</th><th>Item</th><th>SKU</th><th>Quantity</th></tr></thead><tbody>' +
-    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '</td><td>' + esc(x.itemName || x.flavor) + '</td><td>' + esc(x.id) + '</td><td><b>' + esc(orderDisplay(x)) + '</b></td></tr>').join("") +
-    '</tbody></table>';
+    familyTablesHtml(rows);
 }
 function previewPdf() {
   let rows = pdfFilteredRows(), units = rows.reduce((s, x) => s + x.order, 0);
   if (!rows.length) { alert("There are no items to order in this scope."); return; }
-  document.getElementById('pdfPreviewSummary').innerHTML = '<div class="card"><b>' + rows.length + '</b> SKUs • <b>' + units + '</b> total units</div>';
-  document.getElementById('pdfPreviewTable').innerHTML = '<table><thead><tr><th>Category</th><th>Brand / Item</th><th>Details</th><th>Qty</th></tr></thead><tbody>' +
-    rows.map(x => '<tr><td>' + esc(x.category) + '</td><td>' + esc(x.brand) + '<br>' + esc(x.itemName || x.flavor) + '</td><td>' + esc([x.series, x.edition].filter(Boolean).join(' / ')) + '<br><span class="small">' + esc(x.id) + '</span></td><td><b>' + esc(orderDisplay(x)) + '</b></td></tr>').join("") +
-    '</tbody></table>';
+  document.getElementById('pdfPreviewSummary').innerHTML = '<div class="card"><b>' + rows.length + '</b> SKUs • <b>' + units + '</b> total packs / pieces</div>';
+  document.getElementById('pdfPreviewTable').innerHTML = familyTablesHtml(rows);
   document.getElementById('pdfPreviewWrap').style.display = 'block';
   document.getElementById('pdfPreviewWrap').scrollIntoView({ behavior: 'smooth' });
 }
